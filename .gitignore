@@ -1,0 +1,6 @@
+__pycache__/
+.pytest_cache/
+.lean-doc-cache.json
+.env
+.venv/
+venv/
