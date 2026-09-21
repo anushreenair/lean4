@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 @dataclass(frozen=True)
 class Config:
+    # Environment variables make the crawler configurable without changing source code.
     base_url: str = os.getenv(
         "LEAN_DOCS_BASE_URL", "https://lean-lang.org/doc/reference/latest/"
     )
@@ -17,9 +18,11 @@ class Config:
 
     @property
     def allowed_host(self) -> str:
+        # Restricting the host prevents the crawler from leaving official Lean documentation.
         return self.base_url.split("/", 3)[2].lower()
 
     @property
     def allowed_path_prefix(self) -> str:
+        # Restricting the path keeps linked pages inside the configured reference section.
         path = urlparse(self.base_url).path.rstrip("/")
         return path or "/"

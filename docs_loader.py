@@ -12,6 +12,7 @@ from docs_index import Document
 
 
 class DocumentationUnavailable(RuntimeError):
+    # A dedicated error lets the CLI explain offline/cache failures without a traceback.
     pass
 
 
@@ -30,6 +31,7 @@ class _PageParser(HTMLParser):
     def handle_starttag(self, tag, attrs):
         attrs_dict = dict(attrs)
         if tag in {"script", "style", "nav", "footer"}:
+            # These sections are navigation or implementation noise, not reference content.
             self._skip += 1
         if tag == "a" and attrs_dict.get("href"):
             self.links.append(attrs_dict["href"])
@@ -72,6 +74,7 @@ class JsonDocumentCache:
         self.path = Path(path)
 
     def load(self) -> list[Document]:
+        # Cache reuse makes normal runs quick and allows operation without network access.
         if not self.path.exists():
             return []
         try:
@@ -87,6 +90,7 @@ class JsonDocumentCache:
         return documents
 
     def save(self, documents: list[Document]) -> None:
+        # JSON keeps the cache human-readable and uses only the standard library.
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = {"documents": [document.to_json() for document in documents]}
         self.path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -98,6 +102,7 @@ class DocumentationCrawler:
         self.cache = cache
 
     def load(self, refresh: bool = False) -> list[Document]:
+        # Refresh is explicit so a normal question never performs an unnecessary crawl.
         if not refresh:
             cached = self.cache.load()
             if cached:
@@ -105,6 +110,7 @@ class DocumentationCrawler:
         try:
             documents = self._crawl()
         except Exception as exc:
+            # A previous cache is safer than failing completely when the network is unavailable.
             cached = self.cache.load()
             if cached:
                 return cached
@@ -113,6 +119,7 @@ class DocumentationCrawler:
         return documents
 
     def _crawl(self) -> list[Document]:
+        # Breadth-first crawling follows documentation links while honoring the page limit.
         base = self._canonical(self.config.base_url)
         queue = [base]
         seen: set[str] = set()
@@ -143,6 +150,7 @@ class DocumentationCrawler:
         return documents
 
     def _allowed(self, url: str) -> bool:
+        # Host and path checks prevent unrelated websites from entering the documentation index.
         parsed = urlparse(url)
         path = parsed.path.rstrip("/") or "/"
         prefix = self.config.allowed_path_prefix

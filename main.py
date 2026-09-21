@@ -1,5 +1,6 @@
 """Interactive entry point for the Lean documentation-first agent."""
 
+# argparse keeps the script usable from a terminal, in a demo, or from a shell script.
 import argparse
 from pathlib import Path
 
@@ -13,12 +14,14 @@ from llm import provider_from_environment
 
 
 def build_agent(args) -> DocumentationFirstAgent:
+    # All modes share the same configuration so they search the same official source.
     config = Config(
         base_url=args.base_url,
         cache_path=Path(args.cache),
         max_pages=args.max_pages,
     )
     cache = JsonDocumentCache(config.cache_path)
+    # Reusing the cache avoids downloading the same documentation for every question.
     documents = DocumentationCrawler(config, cache).load(refresh=args.refresh_docs)
     return DocumentationFirstAgent(
         DocumentIndex(documents), provider_from_environment(), Path(__file__).with_name("SKILL.md")
@@ -26,6 +29,7 @@ def build_agent(args) -> DocumentationFirstAgent:
 
 
 def build_annotator(args) -> LeanCodeAnnotator:
+    # The token annotator uses the same cached index as the question-answering mode.
     config = Config(
         base_url=args.base_url,
         cache_path=Path(args.cache),
@@ -38,6 +42,7 @@ def build_annotator(args) -> LeanCodeAnnotator:
 
 
 def build_code_agent(args) -> DocumentationFirstCodeAgent:
+    # Code explanation needs both documentation search and a translator.
     config = Config(
         base_url=args.base_url,
         cache_path=Path(args.cache),
@@ -53,6 +58,7 @@ def build_code_agent(args) -> DocumentationFirstCodeAgent:
 
 def print_answer(result, debug: bool = False) -> None:
     if debug:
+        # Debug output makes the documentation-first process visible during development.
         print("\nQUERY")
         print(result.query)
         print("\nWORDS CHECKED")
@@ -81,6 +87,7 @@ def print_answer(result, debug: bool = False) -> None:
 
 
 def print_annotation(result, debug: bool = False) -> None:
+    # Token output is kept separate from the richer English explanation output.
     print("\nTOKEN ANNOTATION")
     for token in result.tokens:
         print(f"{token.text} → {token.category}")
@@ -96,6 +103,7 @@ def print_annotation(result, debug: bool = False) -> None:
 
 
 def print_code_explanation(result, debug: bool = False) -> None:
+    # These sections mirror the requested workflow: breakdown, context, translation, sources.
     print("\nCODE BREAKDOWN")
     for thing in result.things:
         print(f"line {thing.line}: {thing.text} → {thing.category}")
@@ -120,6 +128,7 @@ def print_code_explanation(result, debug: bool = False) -> None:
 
 
 def parse_args():
+    # Explicit modes keep one command useful for both questions and pasted Lean code.
     parser = argparse.ArgumentParser(description="Lean Documentation Agent")
     parser.add_argument("--debug", action="store_true", help="show word/phrase coverage and searches")
     parser.add_argument("--refresh-docs", action="store_true", help="re-crawl official documentation")
@@ -137,6 +146,7 @@ def main() -> int:
     args = parse_args()
     print("Lean Documentation Agent")
     try:
+        # Code modes are handled first because they need a different result formatter.
         if args.explain_code:
             code_agent = build_code_agent(args)
             code = args.code
@@ -153,6 +163,7 @@ def main() -> int:
             return 0
         agent = build_agent(args)
     except DocumentationUnavailable as exc:
+        # A clear message is more useful than a traceback when the docs/cache is unavailable.
         print(f"Documentation unavailable: {exc}")
         print("Connect to the internet or provide an existing cache with --cache.")
         return 2

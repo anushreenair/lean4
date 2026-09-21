@@ -4,6 +4,7 @@ from dataclasses import dataclass, replace
 import re
 
 
+# A simple regex keeps coverage predictable for ordinary English and Lean names.
 WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9_'-]*")
 STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "do", "for", "from",
@@ -13,6 +14,7 @@ STOPWORDS = {
 
 @dataclass(frozen=True)
 class CoverageItem:
+    # These fields show whether each word or phrase was actually checked and found.
     term: str
     type: str
     checked: bool = False
@@ -27,6 +29,7 @@ class QueryAnalysis:
     phrases: tuple[CoverageItem, ...]
 
     def update(self, term: str, found: bool, source: str | None, ambiguous: bool = False):
+        # Frozen records are replaced rather than mutated, making the analysis easy to reason about.
         def update_items(items):
             return tuple(
                 replace(item, checked=True, result_found=found, source=source, ambiguous=ambiguous)
@@ -38,10 +41,12 @@ class QueryAnalysis:
 
 
 def normalize_words(query: str) -> list[str]:
+    # Lowercase normalization makes searches case-insensitive while preserving the original query elsewhere.
     return [match.group(0).lower() for match in WORD_RE.finditer(query)]
 
 
 def analyze_query(query: str) -> QueryAnalysis:
+    # General n-grams find concepts such as "inductive type" without a hardcoded dictionary.
     words = normalize_words(query)
     phrases: list[str] = []
     for size in (3, 2):

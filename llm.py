@@ -10,6 +10,7 @@ from term_analyzer import QueryAnalysis
 
 
 class ExplanationProvider(ABC):
+    # A shared interface lets local and remote explanation strategies be swapped safely.
     @abstractmethod
     def explain(self, query: str, documents: list[SearchResult], coverage: QueryAnalysis) -> str:
         raise NotImplementedError
@@ -17,6 +18,7 @@ class ExplanationProvider(ABC):
 
 class ExtractiveExplanationProvider(ExplanationProvider):
     def explain(self, query: str, documents: list[SearchResult], coverage: QueryAnalysis) -> str:
+        # Extractive output is deterministic and keeps the script useful without an API key.
         if not documents:
             return (
                 "I could not find a relevant cached passage in the official Lean documentation. "
@@ -33,6 +35,7 @@ class OpenAIExplanationProvider(ExplanationProvider):
         self.api_key, self.model, self.endpoint, self.timeout = api_key, model, endpoint, timeout
 
     def explain(self, query: str, documents: list[SearchResult], coverage: QueryAnalysis) -> str:
+        # Only retrieved documentation and the user's question are sent to the provider.
         context = "\n\n".join(f"[{doc.title}] {doc.text}" for doc in documents[:5])
         prompt = (
             "Answer the Lean question simply and only from the official documentation context. "
@@ -57,6 +60,7 @@ class OpenAIExplanationProvider(ExplanationProvider):
 def provider_from_environment() -> ExplanationProvider | None:
     key = os.getenv("OPENAI_API_KEY")
     if not key:
+        # Returning None deliberately selects the local fallback in the agent.
         return None
     return OpenAIExplanationProvider(
         key,

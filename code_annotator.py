@@ -7,6 +7,7 @@ import re
 from agent import load_skill
 
 
+# These sets turn raw tokens into labels that are understandable to Lean learners.
 KEYWORDS = {
     "axiom", "class", "coinductive", "def", "deriving", "else", "example", "extends",
     "if", "import", "inductive", "instance", "let", "match", "namespace", "open",
@@ -30,6 +31,7 @@ IDENTIFIER_RE = re.compile(r"(?:[A-Za-z_][A-Za-z0-9_']*|[α-ωΑ-Ω][A-Za-z0-9_'
 
 @dataclass(frozen=True)
 class AnnotatedToken:
+    # Line and column positions let the caller relate a label back to the source code.
     text: str
     category: str
     line: int
@@ -52,6 +54,7 @@ class LeanCodeAnnotator:
         self.skill = load_skill(skill_path)
 
     def annotate(self, code: str) -> CodeAnnotation:
+        # Documentation is checked before classification to preserve the project's core rule.
         raw_tokens = tokenize_lean(code)
         annotated: list[AnnotatedToken] = []
         searches: list[str] = []
@@ -78,10 +81,12 @@ class _RawToken:
 
 
 def tokenize_lean(code: str) -> list[_RawToken]:
+    # A small tokenizer is enough for explanation; a full Lean parser would add unnecessary runtime complexity.
     tokens: list[_RawToken] = []
     index = 0
     line = 1
     column = 1
+    # Longer operators must be recognized before their individual characters.
     multi = (":=", "=>", "->", "<>", "≤", "≥", "≠", "→", "←", "↔", "∧", "∨", "∈", "⊢")
     while index < len(code):
         char = code[index]
@@ -95,18 +100,21 @@ def tokenize_lean(code: str) -> list[_RawToken]:
             column = 1
             continue
         if code.startswith("--", index):
+            # Line comments are ignored as executable tokens and handled as documentation items elsewhere.
             while index < len(code) and code[index] != "\n":
                 index += 1
                 column += 1
             continue
         start_line, start_column = line, column
         if char == '"':
+            # Keep quoted text together so a string is reported as one literal.
             end = index + 1
             while end < len(code) and code[end] != '"':
                 end += 2 if code[end] == "\\" else 1
             end = min(end + 1, len(code))
             value = code[index:end]
         elif code.startswith("#", index):
+            # Commands such as #check and #eval are single Lean tokens for annotation purposes.
             match = re.match(r"#[A-Za-z][A-Za-z0-9_]*", code[index:])
             value = match.group(0) if match else "#"
         elif any(code.startswith(operator, index) for operator in multi):
@@ -123,6 +131,7 @@ def tokenize_lean(code: str) -> list[_RawToken]:
 
 
 def classify_token(token: str) -> str:
+    # The order matters: for example, "simp" is both a word and a tactic identifier.
     if token.startswith('"') and token.endswith('"'):
         return "string"
     if token in KEYWORDS:

@@ -9,11 +9,13 @@ TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9_'-]*")
 
 
 def tokenize(value: str) -> list[str]:
+    # Lowercase word tokens give deterministic matching without a database or search service.
     return [token.lower() for token in TOKEN_RE.findall(value)]
 
 
 @dataclass(frozen=True)
 class Document:
+    # A compact page record is enough for caching, searching, and source display.
     title: str
     url: str
     headings: tuple[str, ...]
@@ -34,6 +36,7 @@ class Document:
 
 @dataclass(frozen=True)
 class SearchResult:
+    # Search results retain the query and source fields needed for explainable answers.
     query: str
     title: str
     url: str
@@ -50,6 +53,7 @@ class DocumentIndex:
         self.documents = tuple(documents)
 
     def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+        # A small local index keeps searches fast and reproducible in tests and offline runs.
         query_tokens = set(tokenize(query))
         if not query_tokens:
             return []
@@ -63,6 +67,7 @@ class DocumentIndex:
             body_hits = len(query_tokens & body_tokens)
             if not (title_hits or heading_hits or body_hits):
                 continue
+            # Titles and headings are stronger signals than a random body-text match.
             score = (4 * title_hits + 2 * heading_hits + body_hits) / len(query_tokens)
             section = document.headings[0] if document.headings else document.title
             scored.append(
@@ -79,6 +84,7 @@ class DocumentIndex:
 
 
 def _excerpt(text: str, query_tokens: set[str], width: int = 520) -> str:
+    # Short excerpts give the translator useful context without sending whole pages.
     sentences = re.split(r"(?<=[.!?])\s+", " ".join(text.split()))
     content_tokens = query_tokens - {
         "a", "an", "and", "are", "as", "at", "be", "by", "do", "for", "from",
